@@ -1,7 +1,10 @@
-import { Link2Icon } from 'lucide-react';
-import { ReactNode, useCallback } from 'react';
-import { Accept, useDropzone } from 'react-dropzone';
+import { uniqueId } from 'lodash';
+import { CircleAlertIcon, CircleCheckIcon, Link2Icon } from 'lucide-react';
+import { ReactNode, useCallback, useState } from 'react';
+import { Accept, FileWithPath, useDropzone } from 'react-dropzone';
 import { twMerge } from 'tailwind-merge';
+
+import { MAX_FILE_SIZE } from '../data';
 
 export type UploadProps = {
   className?: string;
@@ -12,6 +15,11 @@ export type UploadProps = {
   typeFilesAccept?: Accept;
 };
 
+export type UploadFileProps = {
+  data: FileWithPath;
+  error: boolean;
+};
+
 export function Upload({
   className,
   label = 'Arraste e solte os arquivos aqui ou clique para selecionar',
@@ -20,8 +28,18 @@ export function Upload({
   linkIcon,
   typeFilesAccept,
 }: UploadProps) {
-  const onDrop = useCallback((acceptedFiles: any) => {
-    acceptedFiles.forEach((file: any) => {
+  const [files, setFiles] = useState<UploadFileProps[]>([]);
+
+  const onDrop = useCallback((acceptedFiles: FileWithPath[]) => {
+    const newFiles = acceptedFiles.map((file) => ({
+      data: file,
+      error: file.size > MAX_FILE_SIZE,
+    }));
+
+    setFiles((prevState) => [...prevState, ...newFiles]);
+
+    /**
+     * acceptedFiles.forEach((file: any) => {
       const reader = new FileReader();
 
       reader.onabort = () => console.log('file reading was aborted');
@@ -34,15 +52,11 @@ export function Upload({
       };
       reader.readAsArrayBuffer(file);
     });
+     */
   }, []);
 
-  const {
-    getRootProps,
-    getInputProps,
-    isDragActive,
-    isDragAccept,
-    acceptedFiles,
-  } = useDropzone({ onDrop, accept: typeFilesAccept });
+  const { getRootProps, getInputProps, isDragActive, isDragAccept } =
+    useDropzone({ onDrop, accept: typeFilesAccept });
 
   function formatBytes(bytes: number, decimals = 2) {
     if (bytes === 0) return '0 Bytes';
@@ -54,6 +68,12 @@ export function Upload({
     const i = Math.floor(Math.log(bytes) / Math.log(k));
 
     return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+  }
+
+  function handleRemoveFile(index: number) {
+    setFiles((prevState) =>
+      prevState.filter((file) => prevState.indexOf(file) !== index),
+    );
   }
 
   return (
@@ -78,32 +98,37 @@ export function Upload({
               : labelRejectFile}
         </p>
       </div>
-      {acceptedFiles.length > 0 && (
-        <div className="w-full flex flex-col gap-2">
-          {acceptedFiles.map((file) => (
+      {files.length > 0 && (
+        <div className="w-full md:w-96 flex flex-col gap-2">
+          {files.map((file, index) => (
             <div
-              key={file.path}
+              key={uniqueId()}
               className="flex gap-2 bg-default-100 px-3 py-2 rounded-md"
             >
               <img
                 alt=""
                 className="min-w-16 min-h-16 max-w-16 max-h-16 rounded-md object-cover"
                 height={48}
-                src={URL.createObjectURL(file)}
+                src={URL.createObjectURL(file.data)}
                 width={48}
               />
               <div className="flex-1">
                 <p className="line-clamp-1 text-md font-semibold">
-                  {file.name}
+                  {file.data.name}
                 </p>
-                <p className="line-clamp-1 text-sm">{formatBytes(file.size)}</p>
-                <p className="text-md font-medium text-danger cursor-pointer hover:opacity-80">
+                <p className="line-clamp-1 text-sm">
+                  {formatBytes(file.data.size)}
+                </p>
+                <button
+                  className="text-md font-medium text-danger cursor-pointer hover:opacity-80"
+                  onClick={() => handleRemoveFile(index)}
+                >
                   Excluir
-                </p>
+                </button>
               </div>
-              <div>
+              <div className="flex gap-1">
                 <a
-                  href={URL.createObjectURL(file)}
+                  href={URL.createObjectURL(file.data)}
                   rel="noreferrer"
                   target="_blank"
                 >
@@ -113,6 +138,21 @@ export function Upload({
                     <Link2Icon className="w-6 h-6 hover:opacity-80" />
                   )}
                 </a>
+                {!file.error ? (
+                  <span title="Arquivo enviado com sucesso">
+                    <CircleCheckIcon
+                      className="text-success-600 w-6 h-6 hover:opacity-80"
+                      name="Sucesso"
+                    />
+                  </span>
+                ) : (
+                  <span title="Erro ao enviar o arquivo">
+                    <CircleAlertIcon
+                      className="text-danger-600 w-6 h-6 hover:opacity-80"
+                      name="Sucesso"
+                    />
+                  </span>
+                )}
               </div>
             </div>
           ))}
